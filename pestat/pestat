@@ -49,6 +49,7 @@ where:
 	-m free_mem: Print only nodes with free memory LESS than free_mem MB
 	-M free_mem: Print only nodes with free memory GREATER than free_mem MB (under-utilized)
 	-d: Omit nodes with states: down drained
+	-D: Omit job detail
 	-1: Default: Only 1 line per node (unique nodes in multiple partitions are printed once only)
 	-2: 2..N lines per node which participates in multiple partitions 
 	-E: Job EndTime is printed after each jobid/user
@@ -92,6 +93,7 @@ export uniquenodes=1
 
 # Omit nodes with states: down drained
 export omitdown=0
+export omitjobdetail=0
 
 # Controls whether GRES (Generic Resources) will be printed
 export printgres=0
@@ -134,7 +136,7 @@ fi
 # Parse command options
 #
 
-while getopts "p:u:g:q:s:n:j:w:m:M:R:CcdhVFf12ENG" options; do
+while getopts "p:u:g:q:s:n:j:w:m:M:R:CcdDhVFf12ENG" options; do
 	case $options in
 		p )	export partition="-p $OPTARG"
 			echo Print only nodes in partition $OPTARG
@@ -178,6 +180,9 @@ while getopts "p:u:g:q:s:n:j:w:m:M:R:CcdhVFf12ENG" options; do
 			;;
 		d )	export omitdown=1
 			echo Omit nodes with states: down drained
+			;;
+		D )	export omitjobdetail=1
+			echo Omit job detail
 			;;
 		j )	hostlist="-n `$prefix/squeue -j $OPTARG -h -o %N`"
 			echo Select only nodes with jobs in joblist=$OPTARG
@@ -278,6 +283,7 @@ BEGIN {
 	memory_thres2=ENVIRON["memory_thres2"]
 	printallnodes=ENVIRON["printallnodes"]
 	omitdown=ENVIRON["omitdown"]
+	omitjobdetail=ENVIRON["omitjobdetail"]
 	printgres=ENVIRON["printgres"]
 	printjobname=ENVIRON["printjobname"]
 	printjobendtime=ENVIRON["printjobendtime"]
@@ -353,8 +359,13 @@ BEGIN {
 	if (printjobendtime == 1) JobInfo = JobInfo " EndTime"
 	JobInfo = JobInfo " ..."
 	# Print a header line (variable hostnamelength)
-	printf("%*s %15s %8s %7s %8s %8s %8s  %s\n", hostnamelength, "Hostname", "Partition", "Node", "Num_CPU", "CPUload", "Memsize", "Freemem", "Joblist")
-	printf("%*s %15s %8s %7s %8s %8s %8s  %s\n", hostnamelength, "", "", "State", "Use/Tot", "", "(MB)", "(MB)", JobInfo)
+	if (omitjobdetail == 0) {
+		printf("%*s %15s %8s %7s %8s %8s %8s  %s\n", hostnamelength, "Hostname", "Partition", "Node", "Num_CPU", "CPUload", "Memsize", "Freemem", "Joblist")
+		printf("%*s %15s %8s %7s %8s %8s %8s  %s\n", hostnamelength, "", "", "State", "Use/Tot", "", "(MB)", "(MB)", JobInfo)
+	} else {
+		printf("%*s %15s %8s %7s %8s %8s %8s\n", hostnamelength, "Hostname", "Partition", "Node", "Num_CPU", "CPUload", "Memsize", "Freemem")
+		printf("%*s %15s %8s %7s %8s %8s %8s\n", hostnamelength, "", "", "State", "Use/Tot", "", "(MB)", "(MB)")
+	}
 }
 {
 	#####################################################################################
@@ -462,7 +473,9 @@ BEGIN {
 		printf("%s%3d%s %3d ", cpucolor, cpulist[1], NORMAL, cpulist[4])
 		printf("%s%7.2f%1s%s ", loadcolor, cpuload, loadflag, NORMAL)
 		printf("%s%8d %s%8d%1s%s ", memcolor, memory, freememcolor, freemem, memflag, NORMAL)
-		printf("%s%s%1s%s", jobcolor, jobs[node], jobflag, NORMAL)
+		if (omitjobdetail == 0) {
+			printf("%s%s%1s%s", jobcolor, jobs[node], jobflag, NORMAL)
+		}
 		printf("\n")
 	}
 	delete cpulist
